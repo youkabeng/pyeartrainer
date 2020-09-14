@@ -1,0 +1,18 @@
+[
+  {
+    "series_name": "Entry Level Course",
+    "levels": [
+      {
+        "name": "Level 1",
+        "level": 1,
+        "intervals": [
+          "m2",
+          "M2"
+        ],
+        "asc": true,
+        "desc": true,
+        "rounds": 30
+      }
+    ]
+  }
+]

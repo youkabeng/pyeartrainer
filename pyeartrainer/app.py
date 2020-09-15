@@ -3,11 +3,10 @@ import curses
 import curses.panel
 from curses import wrapper
 
+import resources
 import yaml
 from mingus.containers import Bar
 from mingus.midi import fluidsynth
-
-import resources
 from trainer import interval
 from tui import input
 
@@ -62,6 +61,8 @@ def curses_main(stdscr):
     interval_trainer = interval.IntervalTrainer(level_config)
     sequence = interval_trainer.generate_sequence()
 
+    rounds = len(sequence)
+    correct_rounds = 0
     for index, interval_index, options in sequence:
         notes = list(filter(lambda x: x[0] == interval_index, options))[0][2]
         bar = create_bar(notes)
@@ -70,26 +71,29 @@ def curses_main(stdscr):
         stdscr.refresh()
         fluidsynth.play_Bar(bar, bpm=80)
         stdscr.clear()
-        key_lst, option_lst = generate_options(options)
+        key_lst, option_lst = generate_options(options, interval_trainer)
         prompt = 'what interval you just heard?\n' + ' '.join(option_lst)
         stdscr.addstr(prompt)
         stdscr.refresh()
         user_input_key = input.wait_key(stdscr, stdscr.getch(), key_lst)
         if user_input_key == ord(str(interval_index + 1)):
+            correct_rounds += 1
             stdscr.addstr(2, 2, 'correct!\n')
         else:
-            stdscr.addstr(2, 2, 'not correct!\n')
+            correct_answer = option_lst[interval_index]
+            stdscr.addstr(2, 2, 'the correct answer is %s\n' % correct_answer)
         stdscr.refresh()
         stdscr.addstr("press SPACE to continue...")
         input.wait_key(stdscr, stdscr.getch(), [input.KEY_CODE_SPACE])
         stdscr.clear()
 
+    stdscr.addstr("your accuracy is %s" % ('{:.2f}'.format(correct_rounds / rounds)))
     stdscr.refresh()
     stdscr.getkey()
 
 
-def generate_options(option_data):
-    option_lst = [str(t[0] + 1) + '. ' + interval.get_interval_name(t[1]) for t in option_data]
+def generate_options(option_data, trainer):
+    option_lst = [str(t[0] + 1) + '. ' + trainer.get_interval_name(t[1]) for t in option_data]
     key_lst = [ord(str(i + 1)) for i in range(len(option_data))]
     return key_lst, option_lst
 

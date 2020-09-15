@@ -131,7 +131,7 @@ interval_name_func_dict = {
 
 
 def _get_interval_name(short_name):
-    return '%s %s' % (INTERVAL_QUALITY_NAME_DICT[short_name[0]], INTERVAL_NUMBER_NAME_DICT[short_name[1]])
+    return '%s %s' % (INTERVAL_QUALITY_NAME_DICT[short_name[0]], INTERVAL_NUMBER_NAME_DICT[int(short_name[1])])
 
 
 def _generate_bar(interval_name, start_note, octave=4, asc=True):

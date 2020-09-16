@@ -20,5 +20,10 @@ setup(
     author_email='phph1990@outlook.com',
     url='',
     license=license,
-    packages=find_packages(exclude=('tests', 'docs'))
+    packages=find_packages(exclude=('tests', 'docs')),
+    entry_points={
+        'console_scripts': [
+            'eartrainer_interval_strek = dtk.tool.data_monitor:main'
+        ]
+    }
 )

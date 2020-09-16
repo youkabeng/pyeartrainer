@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-import curses
-import curses.panel
+import argparse
+import re
+import textwrap
 from curses import wrapper
 
 import resources
 import yaml
 from mingus.containers import Bar
 from mingus.midi import fluidsynth
-from trainer import interval
-from tui import input
+
+from .trainer.interval import IntervalTrainer
+from .tui import input
 
 try:
     import importlib.resources as pkg_resources
@@ -17,6 +19,52 @@ except ImportError:
 
 soundfont_path = '/usr/share/soundfonts/default.sf2'
 audio_driver = 'alsa'
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        'Ear Trainer',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent("""
+            This is a very simple ear trainer app with a simple tui.
+            Features:
+                Interval recognition
+                ...
+                more to come
+        """)
+    )
+    # basic arguments
+    parser.add_argument('-f', '--soundfont', required=True, type=str, help='sound font path')
+    parser.add_argument('-r', '--rounds', default=20, type=int, help='how many rounds in a row')
+    parser.add_argument('d', '--audio_driver', default='alsa', help='specify an audio driver to use')
+    parser.add_argument('t', '--trainer', required=True, type=str, help='specify a trainer')
+    args = parser.parse_args()
+    if args.trainer == 'interval':
+        args = parse_interval_trainer_args(parser)
+
+    return args
+
+
+def parse_interval_trainer_args(parser: argparse.ArgumentParser):
+    parser.add_argument('--level', default='0', type=str, help='custom level config')
+    parser.add_argument('--intervals', default='m2,M2', type=str, help='interval names separated by comma')
+    parser.add_argument('--melodic', action='store_true', help='make melodic intervals available')
+    parser.add_argument('--harmonic', action='store_false', help='make harmonic intervals available')
+    parser.add_argument('--ascending', action='store_true', help='make ascending intervals available')
+    parser.add_argument('--descending', action='store_false', help='make descending intervals available')
+    args = parser.parse_args()
+    if args.level:
+        if re.match('\\d+', args.level):
+            level_config = yaml.load(pkg_resources.read_text(resources, 'level%s.yml' % args.level),
+                                     Loader=yaml.FullLoader)
+        else:
+            with open(args.level, 'r') as config_file:
+                level_config = yaml.load('\n'.join(config_file.readlines()))
+
+        if level_config:
+            for k, v in level_config.items():
+                args.__setattr__(k, v)
+    return args
 
 
 def init(sf, driver):
@@ -29,27 +77,28 @@ def init(sf, driver):
     fluidsynth.init(soundfont_path, audio_driver)
 
 
-def run(args):
-    init(args.get('f'), args.get('d'))
-    wrapper(curses_main)
+def run():
+    args = parse_args()
+    init(args.sf, args.audio_driver)
+
+    wrapper(curses_main, trainer=create_trainer(args))
 
 
-def read_level():
-    level_config_str = pkg_resources.read_text(resources, 'level.json')
-    level_config = yaml.load(level_config_str, Loader=yaml.FullLoader)
-    return level_config
+def create_trainer(args):
+    if args.trainer == 'interval':
+        return IntervalTrainer(args)
 
 
-def create_panel(h, l, y, x, str):
-    win = curses.newwin(h, l, y, x)
-    win.erase()
-    win.box()
-    win.addstr(2, 2, str)
-    panel = curses.panel.new_panel(win)
-    return win, panel
+# def create_panel(h, l, y, x, str):
+#     win = curses.newwin(h, l, y, x)
+#     win.erase()
+#     win.box()
+#     win.addstr(2, 2, str)
+#     panel = curses.panel.new_panel(win)
+#     return win, panel
 
 
-def curses_main(stdscr):
+def curses_main(stdscr, trainer):
     stdscr.border(0, 0, 0, 0, 0, 0, 0, 0)
 
     stdscr.clear()
@@ -106,4 +155,4 @@ def create_bar(notes):
 
 
 if __name__ == '__main__':
-    run({})
+    run()

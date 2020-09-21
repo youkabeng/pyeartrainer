@@ -4,13 +4,13 @@ import re
 import textwrap
 from curses import wrapper
 
-import resources
 import yaml
 from mingus.containers import Bar
 from mingus.midi import fluidsynth
 
-from .trainer.interval import IntervalTrainer
-from .tui import input
+import pyeartrainer.trainer.interval as interval_trainer
+import resources
+from pyeartrainer.tui import input
 
 try:
     import importlib.resources as pkg_resources
@@ -36,8 +36,8 @@ def parse_args():
     # basic arguments
     parser.add_argument('-f', '--soundfont', required=True, type=str, help='sound font path')
     parser.add_argument('-r', '--rounds', default=20, type=int, help='how many rounds in a row')
-    parser.add_argument('d', '--audio_driver', default='alsa', help='specify an audio driver to use')
-    parser.add_argument('t', '--trainer', required=True, type=str, help='specify a trainer')
+    parser.add_argument('-d', '--audiodriver', default='alsa', help='specify an audio driver to use')
+    parser.add_argument('-t', '--trainer', required=True, type=str, help='specify a trainer')
     args = parser.parse_args()
     if args.trainer == 'interval':
         args = parse_interval_trainer_args(parser)
@@ -79,9 +79,9 @@ def init(sf, driver):
 
 def run():
     args = parse_args()
-    init(args.sf, args.audio_driver)
+    init(args.soundfont, args.audiodriver)
 
-    wrapper(curses_main, trainer=create_trainer(args))
+    wrapper(curses_main, args)
 
 
 def create_trainer(args):
@@ -89,16 +89,7 @@ def create_trainer(args):
         return IntervalTrainer(args)
 
 
-# def create_panel(h, l, y, x, str):
-#     win = curses.newwin(h, l, y, x)
-#     win.erase()
-#     win.box()
-#     win.addstr(2, 2, str)
-#     panel = curses.panel.new_panel(win)
-#     return win, panel
-
-
-def curses_main(stdscr, trainer):
+def curses_main(stdscr, args):
     stdscr.border(0, 0, 0, 0, 0, 0, 0, 0)
 
     stdscr.clear()
@@ -106,43 +97,55 @@ def curses_main(stdscr, trainer):
     stdscr.refresh()
     input.wait_key(stdscr, stdscr.getch(), [input.KEY_CODE_SPACE])
 
-    level_config = read_level()[0]['levels'][0]
-    interval_trainer = interval.IntervalTrainer(level_config)
-    sequence = interval_trainer.generate_sequence()
+    sequence = []
 
-    rounds = len(sequence)
-    correct_rounds = 0
-    for index, interval_index, options in sequence:
-        notes = list(filter(lambda x: x[0] == interval_index, options))[0][2]
-        bar = create_bar(notes)
-        stdscr.clear()
-        stdscr.addstr("now hearing the interval")
+    if args.trainer == 'interval':
+        sequence = interval_trainer.generate_interval_sequence(
+            intervals=args.intervals,
+            asc=args.ascending,
+            desc=args.descending,
+            melodic=args.melodic,
+            harmonic=args.harmonic,
+            rounds=args.rounds)
+
+    if sequence:
+        rounds = len(sequence)
+        correct_rounds = 0
+        for index, interval_index, options in sequence:
+            notes = list(filter(lambda x: x[0] == interval_index, options))[0][2]
+            bar = create_bar(notes)
+            stdscr.clear()
+            stdscr.addstr("now hearing the interval")
+            stdscr.refresh()
+            fluidsynth.play_Bar(bar, bpm=80)
+            stdscr.clear()
+            key_lst, option_lst = generate_options(options)
+            prompt = 'what interval you just heard?\n' + ' '.join(option_lst)
+            stdscr.addstr(prompt)
+            stdscr.refresh()
+            user_input_key = input.wait_key(stdscr, stdscr.getch(), key_lst)
+            if user_input_key == ord(str(interval_index + 1)):
+                correct_rounds += 1
+                stdscr.addstr(2, 2, 'correct!\n')
+            else:
+                correct_answer = option_lst[interval_index]
+                stdscr.addstr(2, 2, 'the correct answer is %s\n' % correct_answer)
+            stdscr.refresh()
+            stdscr.addstr("press SPACE to continue...")
+            input.wait_key(stdscr, stdscr.getch(), [input.KEY_CODE_SPACE])
+            stdscr.clear()
+
+        stdscr.addstr("your accuracy is %s" % ('{:.2f}'.format(correct_rounds / rounds)))
         stdscr.refresh()
-        fluidsynth.play_Bar(bar, bpm=80)
-        stdscr.clear()
-        key_lst, option_lst = generate_options(options, interval_trainer)
-        prompt = 'what interval you just heard?\n' + ' '.join(option_lst)
-        stdscr.addstr(prompt)
+        stdscr.getkey()
+    else:
+        stdscr.addstr("%s is not a valid trainer, press SPACE to exit..." % args.trainer)
         stdscr.refresh()
-        user_input_key = input.wait_key(stdscr, stdscr.getch(), key_lst)
-        if user_input_key == ord(str(interval_index + 1)):
-            correct_rounds += 1
-            stdscr.addstr(2, 2, 'correct!\n')
-        else:
-            correct_answer = option_lst[interval_index]
-            stdscr.addstr(2, 2, 'the correct answer is %s\n' % correct_answer)
-        stdscr.refresh()
-        stdscr.addstr("press SPACE to continue...")
-        input.wait_key(stdscr, stdscr.getch(), [input.KEY_CODE_SPACE])
-        stdscr.clear()
-
-    stdscr.addstr("your accuracy is %s" % ('{:.2f}'.format(correct_rounds / rounds)))
-    stdscr.refresh()
-    stdscr.getkey()
+        stdscr.getkey()
 
 
-def generate_options(option_data, trainer):
-    option_lst = [str(t[0] + 1) + '. ' + trainer.get_interval_name(t[1]) for t in option_data]
+def generate_options(option_data):
+    option_lst = [str(t[0] + 1) + '. ' + interval_trainer.get_interval_name(t[1]) for t in option_data]
     key_lst = [ord(str(i + 1)) for i in range(len(option_data))]
     return key_lst, option_lst
 

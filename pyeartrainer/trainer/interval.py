@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-from mingus.containers import Note, Bar
+from mingus.containers import Note
 
-from .models import Trainer
 from .utils import random_pick
 
 # all available notes in an octave
@@ -11,6 +10,7 @@ NOTE_NAME_LIST = [
     'G#', 'A', 'A#', 'B'
 ]
 
+# all available interval qualities
 INTERVAL_QUALITY_NAME_DICT = {
     'P': 'perfect',
     'm': 'minor',
@@ -19,6 +19,7 @@ INTERVAL_QUALITY_NAME_DICT = {
     'A': 'augmented'
 }
 
+# all available interval names
 INTERVAL_NUMBER_NAME_DICT = {
     1: 'unison',
     2: 'second',
@@ -32,6 +33,7 @@ INTERVAL_NUMBER_NAME_DICT = {
 
 
 def _next_note(start_note, semitones):
+    """get next note by adding semitones to the start_note"""
     return Note().from_int(int(start_note) + semitones)
 
 
@@ -100,104 +102,48 @@ def _P8_A7(start_note):
     return start_note, _next_note(start_note, 12)
 
 
-interval_name_func_dict = {
-    'P1': _P1_d2,
-    'd2': _P1_d2,
-    'm2': _m2_A1,
-    'A1': _m2_A1,
-    'M2': _M2_d3,
-    'd3': _M2_d3,
-    'm3': _m3_A2,
-    'A2': _m3_A2,
-    'M3': _M3_d4,
-    'd4': _M3_d4,
-    'P4': _P4_A3,
-    'A3': _P4_A3,
-    'd5': _d5_A4,
-    'A4': _d5_A4,
-    'P5': _P5_d6,
-    'd6': _P5_d6,
-    'm6': _m6_A5,
-    'A5': _m6_A5,
-    'M6': _M6_d7,
-    'd7': _M6_d7,
-    'm7': _m7_A6,
-    'A6': _m7_A6,
-    'M7': _M7_d8,
-    'd8': _M7_d8,
-    'P8': _P8_A7,
-    'A7': _P8_A7
+# mappings between interval names and interval functions
+INTERVAL_NAME_FUNC_DICT = {
+    'P1': _P1_d2, 'd2': _P1_d2, 'm2': _m2_A1, 'A1': _m2_A1,
+    'M2': _M2_d3, 'd3': _M2_d3, 'm3': _m3_A2, 'A2': _m3_A2,
+    'M3': _M3_d4, 'd4': _M3_d4, 'P4': _P4_A3, 'A3': _P4_A3,
+    'd5': _d5_A4, 'A4': _d5_A4, 'P5': _P5_d6, 'd6': _P5_d6,
+    'm6': _m6_A5, 'A5': _m6_A5, 'M6': _M6_d7, 'd7': _M6_d7,
+    'm7': _m7_A6, 'A6': _m7_A6, 'M7': _M7_d8, 'd8': _M7_d8,
+    'P8': _P8_A7, 'A7': _P8_A7
 }
 
 
-def _get_interval_name(short_name):
+def get_interval_name(short_name):
+    """build long name based on short name"""
     return '%s %s' % (INTERVAL_QUALITY_NAME_DICT[short_name[0]], INTERVAL_NUMBER_NAME_DICT[int(short_name[1])])
 
 
-def _generate_bar(interval_name, start_note, octave=4, asc=True):
+def generate_interval(interval_name, start_note, octave=4, asc=True):
+    """build a common interval with two notes"""
     start_note = Note(start_note, octave)
-    second_note = interval_name_func_dict[interval_name](start_note)
-    bar = Bar(meter=(2, 4))
-    if asc:
-        bar.place_notes(start_note, 4)
-        bar.place_notes(second_note, 4)
+    interval = interval_name_func_dict[interval_name](start_note)
+    return [interval[0], interval[1]] if asc else [interval[1], interval[0]]
+
+
+def generate_interval_sequence(intervals, asc=True, desc=True, rounds=20):
+    """generate a sequence of intervals with a specified number of rounds"""
+    interval_names = intervals.split(',')
+    sequence = []
+    if asc and desc:
+        order = [True, False]
+    elif desc:
+        order = [False, False]
     else:
-        bar.place_notes(second_note, 4)
-        bar.place_notes(start_note, 4)
-    return bar
-
-
-def bar_generator(config):
-    have_asc = config['asc']
-    have_desc = config['desc']
-    rounds = config['rounds']
-    interval_names = config['intervals']
-
-    for i in range(0, rounds):
-        yield _generate_bar(
-            random_pick(interval_names),
-            random_pick(NOTE_NAME_LIST),
-            asc=random_pick([have_asc, have_desc]))
-
-
-class IntervalTrainer(Trainer):
-
-    def __init__(self, config):
-        super().__init__(config)
-        self.interval_names = self.config.setdefault('intervals', ['minor_second', 'major_second'])
-        self.rounds = self.config.setdefault('rounds', 10)
-        self.asc = self.config.setdefault('asc', True)
-        self.desc = self.config.setdefault('desc', True)
-
-    def __repr__(self):
-        return "interval trainer[%s], rounds=%d" % (','.join(self.interval_names), self.rounds)
-
-    def generate_sequence(self):
-        sequence = []
-        if self.asc and self.desc:
-            order = [True, False]
-        elif self.desc:
-            order = [False, False]
-        else:
-            order = [True, True]
-        for i in range(0, self.rounds - 1):
-            interval_name = random_pick(self.interval_names)
-            interval_index = self.interval_names.index(interval_name)
-            interval_order = random_pick(order)
-            interval_start_note = random_pick(NOTE_NAME_LIST)
-            options = []
-            for j, interval_name in enumerate(self.interval_names):
-                interval = IntervalTrainer.generate_interval(interval_name, interval_start_note, asc=interval_order)
-                options.append((j, interval_name, interval))
-            sequence.append((i, interval_index, options))
-        return sequence
-
-    @staticmethod
-    def generate_interval(interval_name, start_note, octave=4, asc=True):
-        start_note = Note(start_note, octave)
-        interval = interval_name_func_dict[interval_name](start_note)
-        return [interval[0], interval[1]] if asc else [interval[1], interval[0]]
-
-    @staticmethod
-    def get_interval_name(short_name):
-        return _get_interval_name(short_name)
+        order = [True, True]
+    for i in range(0, rounds - 1):
+        interval_name = random_pick(interval_names)
+        interval_index = interval_names.index(interval_name)
+        interval_order = random_pick(order)
+        interval_start_note = random_pick(NOTE_NAME_LIST)
+        options = []
+        for j, interval_name in enumerate(interval_names):
+            interval = generate_interval(interval_name, interval_start_note, asc=interval_order)
+            options.append((j, interval_name, interval))
+        sequence.append((i, interval_index, options))
+    return sequence

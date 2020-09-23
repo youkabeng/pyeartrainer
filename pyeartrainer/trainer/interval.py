@@ -122,7 +122,7 @@ def get_interval_name(short_name):
 def generate_interval(interval_name, start_note, octave=4, asc=True):
     """build a common interval with two notes"""
     start_note = Note(start_note, octave)
-    interval = interval_name_func_dict[interval_name](start_note)
+    interval = INTERVAL_NAME_FUNC_DICT[interval_name](start_note)
     return [interval[0], interval[1]] if asc else [interval[1], interval[0]]
 
 
@@ -136,7 +136,7 @@ def generate_interval_sequence(intervals, asc=True, desc=True, rounds=20):
         order = [False, False]
     else:
         order = [True, True]
-    for i in range(0, rounds - 1):
+    for i in range(0, rounds):
         interval_name = random_pick(interval_names)
         interval_index = interval_names.index(interval_name)
         interval_order = random_pick(order)

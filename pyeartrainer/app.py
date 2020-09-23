@@ -23,7 +23,7 @@ audio_driver = 'alsa'
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        'Ear Trainer',
+        prog='Ear Trainer',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent("""
             This is a very simple ear trainer app with a simple tui.
@@ -35,36 +35,39 @@ def parse_args():
     )
     # basic arguments
     parser.add_argument('-f', '--soundfont', required=True, type=str, help='sound font path')
-    parser.add_argument('-r', '--rounds', default=20, type=int, help='how many rounds in a row')
     parser.add_argument('-d', '--audiodriver', default='alsa', help='specify an audio driver to use')
-    parser.add_argument('-t', '--trainer', required=True, type=str, help='specify a trainer')
+
+    subparsers = parser.add_subparsers(dest='trainer_name', help='sub-command help')
+
+    parser_interval = subparsers.add_parser('interval', help='trainer for intervals')
+    setup_interval_parser(parser_interval)
+
     args = parser.parse_args()
-    if args.trainer == 'interval':
-        args = parse_interval_trainer_args(parser)
 
-    return args
+    if args.trainer_name == 'interval':
+        if args.level:
+            if re.match('\\d+', args.level):
+                level_config = yaml.load(pkg_resources.read_text(resources, 'level%s.yml' % args.level),
+                                         Loader=yaml.FullLoader)
+            else:
+                with open(args.level, 'r') as config_file:
+                    level_config = yaml.load('\n'.join(config_file.readlines()))
+
+            if level_config:
+                for k, v in level_config.items():
+                    args.__setattr__(k, v)
+
+    return parser.parse_args()
 
 
-def parse_interval_trainer_args(parser: argparse.ArgumentParser):
+def setup_interval_parser(parser):
     parser.add_argument('--level', default='0', type=str, help='custom level config')
     parser.add_argument('--intervals', default='m2,M2', type=str, help='interval names separated by comma')
+    parser.add_argument('--rounds', default=20, type=int, help='how many rounds in a row')
     parser.add_argument('--melodic', action='store_true', help='make melodic intervals available')
-    parser.add_argument('--harmonic', action='store_false', help='make harmonic intervals available')
+    parser.add_argument('--harmonic', action='store_true', help='make harmonic intervals available')
     parser.add_argument('--ascending', action='store_true', help='make ascending intervals available')
-    parser.add_argument('--descending', action='store_false', help='make descending intervals available')
-    args = parser.parse_args()
-    if args.level:
-        if re.match('\\d+', args.level):
-            level_config = yaml.load(pkg_resources.read_text(resources, 'level%s.yml' % args.level),
-                                     Loader=yaml.FullLoader)
-        else:
-            with open(args.level, 'r') as config_file:
-                level_config = yaml.load('\n'.join(config_file.readlines()))
-
-        if level_config:
-            for k, v in level_config.items():
-                args.__setattr__(k, v)
-    return args
+    parser.add_argument('--descending', action='store_true', help='make descending intervals available')
 
 
 def init(sf, driver):
@@ -84,11 +87,6 @@ def run():
     wrapper(curses_main, args)
 
 
-def create_trainer(args):
-    if args.trainer == 'interval':
-        return IntervalTrainer(args)
-
-
 def curses_main(stdscr, args):
     stdscr.border(0, 0, 0, 0, 0, 0, 0, 0)
 
@@ -99,13 +97,11 @@ def curses_main(stdscr, args):
 
     sequence = []
 
-    if args.trainer == 'interval':
+    if args.trainer_name == 'interval':
         sequence = interval_trainer.generate_interval_sequence(
             intervals=args.intervals,
             asc=args.ascending,
             desc=args.descending,
-            melodic=args.melodic,
-            harmonic=args.harmonic,
             rounds=args.rounds)
 
     if sequence:

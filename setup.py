@@ -4,7 +4,6 @@
 
 from setuptools import setup, find_packages
 
-
 # with open('README.rst') as f:
 #     readme = f.read()
 
@@ -23,7 +22,11 @@ setup(
     packages=find_packages(exclude=('tests', 'docs')),
     entry_points={
         'console_scripts': [
-            'eartrainer_interval_strek = dtk.tool.data_monitor:main'
+            'pyet = pyeartrainer.app:main'
         ]
-    }
+    },
+    install_requires=[
+        'mingus>=0.6.0',
+        'PyYAML>=5.3.1'
+    ]
 )
